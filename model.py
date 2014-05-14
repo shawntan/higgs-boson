@@ -48,8 +48,8 @@ def build_cost(output,params):
 		ams_score= T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
 		return ams_score
 
-#	log_loss = -T.sum((weight**2)*(Y*T.log(output) + (1-Y)*T.log(1-output)))/T.sum(weight**2)
-	return Y,weight,-ams(output),ams(output>0.5)
+	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
+	return Y,weight,-ams(output), ams(output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,parameters = build_network(input_width,128)
+	X,output,parameters = build_network(input_width,512)
 	Y,w,cost,ams= build_cost(output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
@@ -70,8 +70,8 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 10000
-	training_set = 200000
+	batch_size = 1000
+	training_set = 100000
 	batch = T.lvector('batch')
 	train = theano.function(
 			inputs=[batch,eps,mu],
