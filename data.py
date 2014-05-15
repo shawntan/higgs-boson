@@ -4,8 +4,6 @@ import numpy as np
 import math
 def load_data(filename):
 	df = pd.read_csv(filename,na_values=[-999.0])
-#	s_mean = df[df['Label'] == 's'].mean()
-#	b_mean = df[df['Label'] == 'b'].mean()
 	if 'Label' in df:
 		df.reindex(np.random.permutation(df.index))
 		labels = df['Label']
@@ -22,8 +20,9 @@ def load_data(filename):
 #	min_data = data.min()
 #	print min_data[min_data >= 0]
 #	data['DER_lep_eta_centrality'].apply(np.log)
-#	data['PRI_jet_num'].apply(np.log)
-	data = (data - data.mean())/data.std()
+#	data['DER_mass_jet_jet'] = data['DER_mass_jet_jet'].apply(np.log)
+#	data['DER_deltaeta_jet_jet'] = data['DER_deltaeta_jet_jet'].apply(np.log)
+#	data = (data - data.mean())/data.std()
 	data = data.fillna(0).values
 	return data,labels,weights,df['EventId']
 

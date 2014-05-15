@@ -3,6 +3,8 @@ import theano
 import theano.tensor as T
 import numpy         as np
 import utils         as U
+import numpy as np
+np.random.seed(12345)
 from data import *
 import cPickle as pickle
 import sys,random
@@ -42,14 +44,19 @@ def build_cost(output,params):
 	weight = T.dvector('weight')
 	b_r = 10
 #	pred_s = theano.printing.Print('Shape')(pred_s)
-	def ams(pred_s):
+	def ams(pred_s,approx=False):
 		s = T.sum(weight * Y * pred_s)
 		b = T.sum(weight * (1-Y) * pred_s)
-		ams_score= T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
+		if approx:
+			ams_score = s/T.sqrt(b + b_r*10)
+		else:
+			ams_score = T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
+
 		return ams_score
 
-	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
-	return Y,weight,-ams(output), ams(output>0.5)
+#	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
+	
+	return Y,weight,-ams(output,approx=True), ams(output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -70,7 +77,7 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 1000
+	batch_size = 10000
 	training_set = 100000
 	batch = T.lvector('batch')
 	train = theano.function(
