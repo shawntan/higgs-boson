@@ -12,20 +12,29 @@ import sys,random
 
 def build_network(input_size,hidden_size):
 	X = T.dmatrix('X')
+
 	W_input_to_hidden1  = U.create_shared(U.initial_weights(input_size,hidden_size))
+	W_hidden1_to_hidden2 = U.create_shared(U.initial_weights(hidden_size,hidden_size))
+	W_hidden2_to_output = U.create_shared(U.initial_weights(hidden_size))
+
 	b_hidden1 = U.create_shared(U.initial_weights(hidden_size))
-	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
+	b_hidden2 = U.create_shared(U.initial_weights(hidden_size))
 	b_output = U.create_shared(U.initial_weights(1)[0])
-	
+
+
 	hidden1 = T.dot(X,W_input_to_hidden1) + b_hidden1
 	hidden1 = hidden1 * (hidden1 > 0)
-	
-	output = T.nnet.sigmoid(T.dot(hidden1,W_hidden1_to_output) + b_output)
+	hidden2 = T.dot(hidden1,W_hidden1_to_hidden2) + b_hidden2
+	hidden2 = hidden2 * (hidden2 > 0)
+
+	output = T.nnet.sigmoid(T.dot(hidden2,W_hidden2_to_output) + b_output)
 	
 	parameters = [
 		W_input_to_hidden1,
+		W_hidden1_to_hidden2,
+		W_hidden2_to_output,
 		b_hidden1,
-		W_hidden1_to_output,
+		b_hidden2,
 		b_output
 	]
 
@@ -42,15 +51,16 @@ def build_cost(output,params):
 		s = T.sum(weight * Y * pred_s)
 		b = T.sum(weight * (1-Y) * pred_s)
 		if approx:
-			ams_score = s/T.sqrt(b + b_r*10)
+			ams_score = (s + b + b_r) * T.log(1 + s/(b + b_r)) - s
 		else:
 			ams_score = T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
 
 		return ams_score
 
 #	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
+	fn_log_loss = -1e-5*T.mean((1-Y)*T.log(1-output))
 	
-	return Y,weight,-ams(output) + l1, ams(output>0.5)
+	return Y,weight,-ams(output)**2, ams(output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -60,7 +70,7 @@ if __name__ == '__main__':
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,parameters = build_network(input_width,512)
+	X,output,parameters = build_network(input_width,256)
 	Y,w,cost,ams= build_cost(output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
@@ -71,8 +81,8 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 1000
-	training_set = 100000
+	batch_size = 10000
+	training_set = 240000
 	batch = T.lvector('batch')
 	train = theano.function(
 			inputs=[batch,eps,mu],
@@ -100,8 +110,7 @@ if __name__ == '__main__':
 		while unseen.sum() > 0:
 			sample = np.random.choice(training_set,batch_size,p=unseen/float(unseen.sum()))
 			unseen[sample] = 0
-			train(sample,0.001,0.999)
-
+			print train(sample,0.01,0.99)
 		ams = test()
 		if best_ams < ams:
 			with open(params_file,'wb') as f:
