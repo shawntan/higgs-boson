@@ -22,7 +22,7 @@ def load_data(filename):
 #	data['DER_lep_eta_centrality'].apply(np.log)
 #	data['DER_mass_jet_jet'] = data['DER_mass_jet_jet'].apply(np.log)
 #	data['DER_deltaeta_jet_jet'] = data['DER_deltaeta_jet_jet'].apply(np.log)
-#	data = (data - data.mean())/data.std()
+	data = (data - data.mean())/data.std()
 	data = data.fillna(0).values
 	return data,labels,weights,df['EventId']
 

@@ -12,27 +12,19 @@ import sys,random
 
 def build_network(input_size,hidden_size):
 	X = T.dmatrix('X')
-	W_input_to_hidden1   = U.create_shared(U.initial_weights(input_size,hidden_size))
-#	W_hidden1_to_hidden2 = U.create_shared(U.initial_weights(hidden_size,hidden_size/2))
-	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
+	W_input_to_hidden1  = U.create_shared(U.initial_weights(input_size,hidden_size))
 	b_hidden1 = U.create_shared(U.initial_weights(hidden_size))
-#	b_hidden2 = U.create_shared(U.initial_weights(hidden_size/2))
+	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
 	b_output = U.create_shared(U.initial_weights(1)[0])
 	
-#	hidden = T.tanh(T.dot(X,W_input_to_hidden) + b_hidden)
-#	hidden = T.nnet.softplus(T.dot(X,W_input_to_hidden) + b_hidden)
 	hidden1 = T.dot(X,W_input_to_hidden1) + b_hidden1
 	hidden1 = hidden1 * (hidden1 > 0)
-#	hidden2 = T.dot(hidden1,W_hidden1_to_hidden2) + b_hidden2
-#	hidden2 = hidden2 * (hidden2 > 0)
-#	hidden = T.nnet.sigmoid(T.dot(X,W_input_to_hidden) + b_hidden)
+	
 	output = T.nnet.sigmoid(T.dot(hidden1,W_hidden1_to_output) + b_output)
 	
 	parameters = [
 		W_input_to_hidden1,
 		b_hidden1,
-#		W_hidden1_to_hidden2,
-#		b_hidden2,
 		W_hidden1_to_output,
 		b_output
 	]
@@ -43,6 +35,8 @@ def build_cost(output,params):
 	Y = T.bvector('Y')
 	weight = T.dvector('weight')
 	b_r = 10
+
+	l1 = 1e-8*sum( T.sum(abs(p)) for p in params )
 #	pred_s = theano.printing.Print('Shape')(pred_s)
 	def ams(pred_s,approx=False):
 		s = T.sum(weight * Y * pred_s)
@@ -56,7 +50,7 @@ def build_cost(output,params):
 
 #	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
 	
-	return Y,weight,-ams(output,approx=True), ams(output>0.5)
+	return Y,weight,-ams(output) + l1, ams(output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -77,7 +71,7 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 10000
+	batch_size = 1000
 	training_set = 100000
 	batch = T.lvector('batch')
 	train = theano.function(
@@ -106,7 +100,7 @@ if __name__ == '__main__':
 		while unseen.sum() > 0:
 			sample = np.random.choice(training_set,batch_size,p=unseen/float(unseen.sum()))
 			unseen[sample] = 0
-			train(sample,0.01,0.99)
+			train(sample,0.001,0.999)
 
 		ams = test()
 		if best_ams < ams:
