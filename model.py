@@ -50,7 +50,7 @@ def build_cost(output,params):
 
 #	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
 	
-	return Y,weight,-ams(output) + l1, ams(output>0.5)
+	return Y,weight,-ams(output), ams(output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -71,8 +71,8 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 1000
-	training_set = 100000
+	batch_size = 10000
+	training_set = 240000
 	batch = T.lvector('batch')
 	train = theano.function(
 			inputs=[batch,eps,mu],
@@ -97,10 +97,10 @@ if __name__ == '__main__':
 	best_ams = 0
 	for b in xrange(10000):
 		unseen = np.ones(training_set,dtype=np.int8)
-		while unseen.sum() > 0:
+		while unseen.sum() >= batch_size:
 			sample = np.random.choice(training_set,batch_size,p=unseen/float(unseen.sum()))
 			unseen[sample] = 0
-			train(sample,0.001,0.999)
+			print train(sample,0.01,0.99)
 
 		ams = test()
 		if best_ams < ams:
