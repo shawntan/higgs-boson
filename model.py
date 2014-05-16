@@ -8,19 +8,27 @@ np.random.seed(12345)
 from data import *
 import cPickle as pickle
 import sys,random
+from theano.tensor.shared_randomstreams import RandomStreams
 #from numpy_hinton import print_arr
 
 def build_network(input_size,hidden_size):
+	srng = RandomStreams(seed=12345)
+
 	X = T.dmatrix('X')
 	W_input_to_hidden1  = U.create_shared(U.initial_weights(input_size,hidden_size))
 	b_hidden1 = U.create_shared(U.initial_weights(hidden_size))
 	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
 	b_output = U.create_shared(U.initial_weights(1)[0])
 	
-	hidden1 = T.dot(X,W_input_to_hidden1) + b_hidden1
-	hidden1 = hidden1 * (hidden1 > 0)
-	
-	output = T.nnet.sigmoid(T.dot(hidden1,W_hidden1_to_output) + b_output)
+	def network(training):
+		hidden1 = T.dot(X,W_input_to_hidden1) + b_hidden1
+		hidden1 = hidden1 * (hidden1 > 0)
+		if training:
+			hidden1 = hidden1 * srng.binomial(size=(hidden_size,),p=0.5)
+		else:
+			hidden1 = 0.5 * hidden1
+		output = T.nnet.sigmoid(T.dot(hidden1,W_hidden1_to_output) + b_output)
+		return output
 	
 	parameters = [
 		W_input_to_hidden1,
@@ -29,28 +37,24 @@ def build_network(input_size,hidden_size):
 		b_output
 	]
 
-	return X,output,parameters
+	return X,network(True),network(False),parameters
 
-def build_cost(output,params):
+def build_cost(output,test_output,params):
 	Y = T.bvector('Y')
 	weight = T.dvector('weight')
 	b_r = 10
 
-	l1 = 1e-8*sum( T.sum(abs(p)) for p in params )
+#	l1 = 1e-8*sum( T.sum(abs(p)) for p in params )
 #	pred_s = theano.printing.Print('Shape')(pred_s)
 	def ams(pred_s,approx=False):
 		s = T.sum(weight * Y * pred_s)
 		b = T.sum(weight * (1-Y) * pred_s)
-		if approx:
-			ams_score = s/T.sqrt(b + b_r*10)
-		else:
-			ams_score = T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
-
+		ams_score = T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
 		return ams_score
 
 #	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
 	
-	return Y,weight,-ams(output), ams(output>0.5)
+	return Y,weight,-ams(output), ams(test_output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
@@ -60,8 +64,8 @@ if __name__ == '__main__':
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,parameters = build_network(input_width,512)
-	Y,w,cost,ams= build_cost(output,parameters)
+	X,output,test_output,parameters = build_network(input_width,512)
+	Y, w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
 	eps = T.dscalar('eps')
