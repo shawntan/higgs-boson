@@ -69,7 +69,7 @@ if __name__ == '__main__':
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,test_output,parameters = build_network(input_width,768)
+	X,output,test_output,parameters = build_network(input_width,1024)
 	Y, w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
@@ -80,8 +80,8 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 20000
-	training_set = 240000
+	batch_size = 50000
+	training_set = 200000
 	batch = T.lvector('batch')
 	train = theano.function(
 			inputs=[batch,eps,mu],
