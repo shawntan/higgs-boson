@@ -46,25 +46,30 @@ def build_cost(output,test_output,params):
 
 #	l1 = 1e-8*sum( T.sum(abs(p)) for p in params )
 #	pred_s = theano.printing.Print('Shape')(pred_s)
-	def ams(pred_s,approx=False):
+	def ams(pred_s):
 		s = T.sum(weight * Y * pred_s)
 		b = T.sum(weight * (1-Y) * pred_s)
 		ams_score = T.sqrt(2*((s + b + b_r) * T.log(1 + s/(b + b_r)) - s))
 		return ams_score
+	def neg_log_ams_approx(pred_s):
+		s = T.sum(weight * Y * pred_s)
+		b = T.sum(weight * (1-Y) * pred_s)
+		log_ams_approx = 0.5*T.log(b + 10) - T.log(s + 0.01)
+		return log_ams_approx
 
 #	log_loss = -T.mean(Y*T.log(output) + (1-Y)*T.log(1-output))
-	
+		
 	return Y,weight,-ams(output), ams(test_output>0.5)
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
-	data,labels,weights,_ = load_data(sys.argv[1])
+	data,labels,weights,_, feature_names = load_data(sys.argv[1])
 	input_width = data.shape[1]
 	data = U.create_shared(data)
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,test_output,parameters = build_network(input_width,512)
+	X,output,test_output,parameters = build_network(input_width,768)
 	Y, w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
@@ -75,7 +80,7 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
-	batch_size = 10000
+	batch_size = 20000
 	training_set = 240000
 	batch = T.lvector('batch')
 	train = theano.function(
@@ -104,12 +109,14 @@ if __name__ == '__main__':
 		while unseen.sum() >= batch_size:
 			sample = np.random.choice(training_set,batch_size,p=unseen/float(unseen.sum()))
 			unseen[sample] = 0
-			print train(sample,0.01,0.99)
-
+			train(sample,0.1,0.9)
 		ams = test()
 		if best_ams < ams:
 			with open(params_file,'wb') as f:
-				pickle.dump([ p.get_value() for p in parameters ],f)
+				pickle.dump({
+					'feature_names': feature_names,
+					'parameters': [ p.get_value() for p in parameters ]
+				},f)
 			best_ams = ams
 		print ams
 
