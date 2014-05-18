@@ -81,7 +81,7 @@ if __name__ == '__main__':
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
 	batch_size = 50000
-	training_set = 200000
+	training_set = 250000
 	batch = T.lvector('batch')
 	train = theano.function(
 			inputs=[batch,eps,mu],
@@ -97,9 +97,9 @@ if __name__ == '__main__':
 			inputs=[],
 			outputs=ams,
 			givens={
-				X: data[training_set:],
-				Y: labels[training_set:],
-				w: weights[training_set:],
+				X: data,
+				Y: labels,
+				w: weights
 			}
 		)
 	
