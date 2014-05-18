@@ -47,7 +47,7 @@ def load_data(filename):
 #	data['DER_lep_eta_centrality'].apply(np.log)
 #	data['DER_mass_jet_jet_log'] = data['DER_mass_jet_jet'].apply(np.log)
 #	data['DER_deltaeta_jet_jet'] = data['DER_deltaeta_jet_jet'].apply(np.log)
-	data['DER_mass_MMC'] = data['DER_mass_MMC'].apply(np.log)
+#	data['DER_mass_MMC'] = data['DER_mass_MMC'].apply(np.log)
 #	data['DER_mass_vis_log'] = data['DER_mass_vis'].apply(np.log)
 #	data['DER_mass_transverse_met_lep_log'] = data['DER_mass_transverse_met_lep'].apply(np.log)
 	data = (data - data.mean())/data.std()
@@ -62,9 +62,9 @@ def load_data(filename):
 		if nan_rows.sum() > 0:
 			data["ISNA_%s"%col] = 0
 			data["ISNA_%s"%col][nan_rows] = 1
-	for i in range(4):
-		data["jet_%d"%i] = 0
-		data["jet_%d"%i][data.PRI_jet_num == i] = 1
+#	for i in range(4):
+#		data["jet_%d"%i] = 0
+#		data["jet_%d"%i][data.PRI_jet_num == i] = 1
 
 
 	return data.fillna(0).values,labels,weights,df['EventId'], [ n for n in data ]
