@@ -23,8 +23,8 @@ def build_network(input_size,hidden_size,data=None,weights=None,normalise_mask=N
 		non_na_mask = -np.isnan(data)
 		data[-non_na_mask] = -999.0
 		total_weights_per_col = np.dot(weights,non_na_mask)
-#		probs = weights.reshape(weights.shape[0],1)*non_na_mask / total_weights_per_col
-		probs = (1.0 / np.sum(non_na_mask,axis=0)) * non_na_mask
+		probs = weights.reshape(weights.shape[0],1)*non_na_mask / total_weights_per_col
+#		probs = (1.0 / np.sum(non_na_mask,axis=0)) * non_na_mask
 		weighted_mean = np.sum(probs*data,axis=0)
 		inv_weighted_std = np.sqrt(np.sum(probs*((data - weighted_mean)**2),axis=0))
 		weighted_mean[normalise_mask] = 0
@@ -63,7 +63,8 @@ def build_network(input_size,hidden_size,data=None,weights=None,normalise_mask=N
 	return X,network(True),network(False),parameters,non_tuned
 
 def build_cost(output,test_output,params):
-	Y = T.fvector('Y')
+	Y = T.bvector('Y')
+	Y = T.cast(Y,'float32')
 	weight = T.fvector('weight')
 	total_weight = T.fscalar('total_weight')
 	b_r = 10
@@ -100,7 +101,7 @@ if __name__ == '__main__':
 
 	Y, w, total_w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
-
+	gradients = [ T.cast(g,'float32') for g in gradients ]
 	eps = T.fscalar('eps')
 	mu  = T.fscalar('mu')
 
@@ -109,6 +110,8 @@ if __name__ == '__main__':
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
+	print delta_updates
+	print param_updates
 	batch_size = 5000
 	training_set = 200000
 	batch = T.iscalar('batch')
@@ -122,7 +125,8 @@ if __name__ == '__main__':
 				Y:  labels[batch*batch_size:(batch+1)*batch_size],
 				w: weights[batch*batch_size:(batch+1)*batch_size],
 				total_w:total_weights
-			}
+			},
+			allow_input_downcast=True
 		)
 	test = theano.function(
 			inputs=[],
@@ -132,7 +136,8 @@ if __name__ == '__main__':
 				Y: labels[training_set:],
 				w: weights[training_set:],
 				total_w:total_weights
-			}
+			},
+			allow_input_downcast=True
 		)
 	print "Done."
 	
@@ -140,7 +145,7 @@ if __name__ == '__main__':
 	batch_order = range(training_set/batch_size)
 	for epoch in xrange(10000):
 		random.shuffle(batch_order)
-		for batch in batch_order: print train(batch,0.1,0.9)
+		for batch in batch_order: print train(batch,0.01,0.9)
 		ams = test()
 		if best_ams < ams:
 			with open(params_file,'wb') as f:
