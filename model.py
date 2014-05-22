@@ -14,7 +14,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 def build_network(input_size,hidden_size,data=None,weights=None,normalise_mask=None):
 	srng = RandomStreams(seed=12345)
 	
-	X = T.dmatrix('X')
+	X = T.fmatrix('X')
 	if weights is None:
 		X_offset = U.create_shared(U.initial_weights(input_size))
 		X_scale  = U.create_shared(U.initial_weights(input_size))
@@ -63,9 +63,9 @@ def build_network(input_size,hidden_size,data=None,weights=None,normalise_mask=N
 	return X,network(True),network(False),parameters,non_tuned
 
 def build_cost(output,test_output,params):
-	Y = T.bvector('Y')
-	weight = T.dvector('weight')
-	total_weight = T.dscalar('total_weight')
+	Y = T.fvector('Y')
+	weight = T.fvector('weight')
+	total_weight = T.fscalar('total_weight')
 	b_r = 10
 
 	def ams(pred_s):
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 	total_weights = U.create_shared(np.sum(weights))
 
 	X,output,test_output,parameters,non_tuned =\
-			build_network(input_width,768,data,weights,normalise_mask)
+			build_network(input_width,2048,data,weights,normalise_mask)
 
 	data = U.create_shared(data)
 	labels = U.create_shared(labels,dtype=np.int8)
@@ -101,8 +101,9 @@ if __name__ == '__main__':
 	Y, w, total_w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
-	eps = T.dscalar('eps')
-	mu  = T.dscalar('mu')
+	eps = T.fscalar('eps')
+	mu  = T.fscalar('mu')
+
 	deltas = [ U.create_shared(np.zeros(p.get_value().shape)) for p in parameters ]
 	delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
@@ -111,6 +112,7 @@ if __name__ == '__main__':
 	batch_size = 5000
 	training_set = 200000
 	batch = T.iscalar('batch')
+	print "Compiling functions..."
 	train = theano.function(
 			inputs=[batch,eps,mu],
 			outputs=cost,
@@ -132,12 +134,13 @@ if __name__ == '__main__':
 				total_w:total_weights
 			}
 		)
+	print "Done."
 	
 	best_ams = 0
 	batch_order = range(training_set/batch_size)
 	for epoch in xrange(10000):
 		random.shuffle(batch_order)
-		for batch in batch_order: train(batch,0.01,0.99)
+		for batch in batch_order: print train(batch,0.1,0.9)
 		ams = test()
 		if best_ams < ams:
 			with open(params_file,'wb') as f:
