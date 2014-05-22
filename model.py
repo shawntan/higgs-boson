@@ -11,22 +11,42 @@ import sys,random
 from theano.tensor.shared_randomstreams import RandomStreams
 #from numpy_hinton import print_arr
 
-def build_network(input_size,hidden_size):
+def build_network(input_size,hidden_size,data=None,weights=None,normalise_mask=None):
 	srng = RandomStreams(seed=12345)
-
+	
 	X = T.dmatrix('X')
+	if weights is None:
+		X_offset = U.create_shared(U.initial_weights(input_size))
+		X_scale  = U.create_shared(U.initial_weights(input_size))
+	else:
+		#probs = weights / np.sum(weights)
+		non_na_mask = -np.isnan(data)
+		data[-non_na_mask] = -999.0
+		total_weights_per_col = np.dot(weights,non_na_mask)
+#		probs = weights.reshape(weights.shape[0],1)*non_na_mask / total_weights_per_col
+		probs = (1.0 / np.sum(non_na_mask,axis=0)) * non_na_mask
+		weighted_mean = np.sum(probs*data,axis=0)
+		inv_weighted_std = np.sqrt(np.sum(probs*((data - weighted_mean)**2),axis=0))
+		weighted_mean[normalise_mask] = 0
+		inv_weighted_std[normalise_mask] = 1
+		X_offset = U.create_shared(weighted_mean)
+		X_scale  = U.create_shared(inv_weighted_std)
+
 	W_input_to_hidden1  = U.create_shared(U.initial_weights(input_size,hidden_size))
-	b_hidden1 = U.create_shared(U.initial_weights(hidden_size))
 	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
-	b_output = U.create_shared(U.initial_weights(1)[0])
+	b_hidden1           = U.create_shared(U.initial_weights(hidden_size))
+	b_output            = U.create_shared(U.initial_weights(1)[0])
 	
 	def network(training):
-		hidden1 = T.dot(X,W_input_to_hidden1) + b_hidden1
+		_X = T.neq(X,-999.0) * ( (X - X_offset) * X_scale )
+		hidden1 = T.dot(_X,W_input_to_hidden1) + b_hidden1
 		hidden1 = hidden1 * (hidden1 > 0)
+
 		if training:
 			hidden1 = hidden1 * srng.binomial(size=(hidden_size,),p=0.5)
 		else:
-			hidden1 = 0.5 * hidden1
+			hidden1 = hidden1 * 0.5
+
 		output = T.nnet.sigmoid(T.dot(hidden1,W_hidden1_to_output) + b_output)
 		return output
 	
@@ -34,10 +54,13 @@ def build_network(input_size,hidden_size):
 		W_input_to_hidden1,
 		b_hidden1,
 		W_hidden1_to_output,
-		b_output
+		b_output,
 	]
-
-	return X,network(True),network(False),parameters
+	non_tuned = [
+		X_offset,
+		X_scale
+	]
+	return X,network(True),network(False),parameters,non_tuned
 
 def build_cost(output,test_output,params):
 	Y = T.bvector('Y')
@@ -64,14 +87,17 @@ def build_cost(output,test_output,params):
 
 if __name__ == '__main__':
 	params_file = sys.argv[2]
-	data,labels,weights,_, feature_names = load_data(sys.argv[1])
-	total_weights = U.create_shared(np.sum(weights))
+	data,labels,weights,normalise_mask,_,feature_names = load_data(sys.argv[1])
 	input_width = data.shape[1]
+	total_weights = U.create_shared(np.sum(weights))
+
+	X,output,test_output,parameters,non_tuned =\
+			build_network(input_width,768,data,weights,normalise_mask)
+
 	data = U.create_shared(data)
 	labels = U.create_shared(labels,dtype=np.int8)
 	weights = U.create_shared(weights)
 
-	X,output,test_output,parameters = build_network(input_width,512)
 	Y, w, total_w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
 
@@ -109,15 +135,16 @@ if __name__ == '__main__':
 	
 	best_ams = 0
 	batch_order = range(training_set/batch_size)
-	for b in xrange(10000):
+	for epoch in xrange(10000):
 		random.shuffle(batch_order)
-		for batch in batch_order: print train(batch,0.1,0.9)
+		for batch in batch_order: train(batch,0.01,0.99)
 		ams = test()
 		if best_ams < ams:
 			with open(params_file,'wb') as f:
 				pickle.dump({
 					'feature_names': feature_names,
-					'parameters': [ p.get_value() for p in parameters ]
+					'parameters': [ p.get_value() for p in parameters ],
+					'non_tuned': [ p.get_value() for p in non_tuned ]
 				},f)
 			best_ams = ams
 		print ams
