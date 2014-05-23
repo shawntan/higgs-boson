@@ -14,7 +14,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 def build_network(input_size,hidden_size):
 	srng = RandomStreams(seed=12345)
 
-	X = T.dmatrix('X')
+	X = T.fmatrix('X')
 	W_input_to_hidden1  = U.create_shared(U.initial_weights(input_size,hidden_size))
 	b_hidden1 = U.create_shared(U.initial_weights(hidden_size))
 	W_hidden1_to_output = U.create_shared(U.initial_weights(hidden_size))
@@ -40,9 +40,9 @@ def build_network(input_size,hidden_size):
 	return X,network(True),network(False),parameters
 
 def build_cost(output,test_output,params):
-	Y = T.bvector('Y')
-	weight = T.dvector('weight')
-	total_weight = T.dscalar('total_weight')
+	Y = T.fvector('Y')
+	weight = T.fvector('weight')
+	total_weight = T.fscalar('total_weight')
 	b_r = 10
 
 	def ams(pred_s):
@@ -74,11 +74,11 @@ if __name__ == '__main__':
 	X,output,test_output,parameters = build_network(input_width,512)
 	Y, w, total_w, cost, ams = build_cost(output,test_output,parameters)
 	gradients = T.grad(cost,wrt=parameters)
-
-	eps = T.dscalar('eps')
-	mu  = T.dscalar('mu')
+	gradients = [ T.cast(g,'float32') for g in gradients ]
+	eps = T.fscalar('eps')
+	mu  = T.fscalar('mu')
 	deltas = [ U.create_shared(np.zeros(p.get_value().shape)) for p in parameters ]
-	delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
+	delta_nexts   = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
 	
@@ -94,7 +94,8 @@ if __name__ == '__main__':
 				Y:  labels[batch*batch_size:(batch+1)*batch_size],
 				w: weights[batch*batch_size:(batch+1)*batch_size],
 				total_w:total_weights
-			}
+			},
+			allow_input_downcast=True
 		)
 	test = theano.function(
 			inputs=[],
@@ -104,7 +105,8 @@ if __name__ == '__main__':
 				Y: labels[training_set:],
 				w: weights[training_set:],
 				total_w:total_weights
-			}
+			},
+			allow_input_downcast=True
 		)
 	
 	best_ams = 0

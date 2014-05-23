@@ -16,7 +16,7 @@ def create_shared(array, dtype=theano.config.floatX, name=None):
 	return theano.shared(
 			value = np.asarray(
 				array,
-				dtype = dtype
+				dtype = np.float32
 			),
 			name = name
 		)
