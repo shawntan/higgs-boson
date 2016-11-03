@@ -25,14 +25,50 @@ def momentum_vec(p_T,phi,eta=None):
         z = p_T * np.sinh(eta)/p_T
         return x,y,z
 
+def process(df):
+    df_X = df.ix[:,
+                 (df.columns != 'EventId') & 
+                 (df.columns != 'Label') & 
+                 (df.columns != 'Weight')]
+
+    for col in df_X.columns:
+        nan_rows = pd.isnull(df[col])
+        if nan_rows.sum() > 0:
+            df_X["ISNA_%s"%col] = 0
+            df_X["ISNA_%s"%col][nan_rows] = 1
+    return df_X
+
 
 def load(filename):
-    df = pd.read_csv(filename)
-    Y = np.array(df.ix[:, 'Label']) == 's'
-    W = np.array(df.ix[:, 'Weight']).astype(np.float32)
-    X = np.array(df.ix[:,
-        (df.columns != 'EventId') & 
-        (df.columns != 'Label') & 
-        (df.columns != 'Weight')]).astype(np.float32)
-    return X, W, Y.astype(np.int32)
+    df = pd.read_csv(filename, na_values=[-999.0])
+    df_X = process(df)
+    df_X = (df_X - df_X.mean()) / df_X.std()
+    X = df_X.fillna(0).values.astype(np.float32)
+    W = df.ix[:, 'Weight'].values.astype(np.float32)
+    Y = (df.ix[:, 'Label'].values == 's').astype(np.int32)
+    s = 1337
+    np.random.seed(s)
+    np.random.shuffle(X)
+    np.random.seed(s)
+    np.random.shuffle(W)
+    np.random.seed(s)
+    np.random.shuffle(Y)
+    return X, W, Y
 
+def load_test(test_filename, train_filename):
+    df = pd.read_csv(train_filename, na_values=[-999.0])
+    df_X = process(df)
+    mean = df_X.mean()
+    std = df_X.std()
+
+    df = pd.read_csv(test_filename, na_values=[-999.0])
+    df_X = process(df)
+    df_X = (df_X - mean) / std
+    X = df_X.fillna(0).values.astype(np.float32)
+    return X, df[['EventId']]
+
+    
+
+
+if __name__ == "__main__":
+    load('data/training.csv')
